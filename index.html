@@ -1009,99 +1009,108 @@ function copyQRSession() {
 let videoStream = null;
 let scanInterval = null;
 let scannedSession = null;
+let isScanning = false;
 
 async function startCamera() {
   const video = document.getElementById('qr-video');
   const status = document.getElementById('cam-status');
-  const scanLine = document.getElementById('scan-line');
+
   try {
     videoStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 640 } }
+      video: { facingMode: { ideal: 'environment' } }
     });
     video.srcObject = videoStream;
+    video.setAttribute('playsinline', true);
     await video.play();
-    status.textContent = '🔍 جاري البحث عن رمز QR...';
-    scanLine.style.display = 'block';
+
+    status.textContent = '🔍 وجّه الكاميرا نحو رمز QR...';
+    document.getElementById('scan-line').style.display = 'block';
     document.getElementById('btn-start-cam').style.display = 'none';
     document.getElementById('btn-stop-cam').style.display = 'flex';
-    startScanning();
+
+    // Wait for video to be ready then start scanning
+    video.addEventListener('loadeddata', () => {
+      if (!isScanning) startScanning();
+    }, { once: true });
+
+    // Fallback if loadeddata already fired
+    if (video.readyState >= 2) {
+      if (!isScanning) startScanning();
+    }
+
   } catch(e) {
     status.textContent = '❌ تعذّر الوصول للكاميرا — تأكد من منح الإذن';
-    status.style.color = '#fca5a5';
   }
 }
 
 function stopCamera() {
+  isScanning = false;
+  if (scanInterval) { clearInterval(scanInterval); scanInterval = null; }
   if (videoStream) { videoStream.getTracks().forEach(t => t.stop()); videoStream = null; }
-  if (scanInterval) { cancelAnimationFrame(scanInterval); scanInterval = null; }
   const video = document.getElementById('qr-video');
   video.srcObject = null;
-  document.getElementById('cam-status').textContent = 'جاري تشغيل الكاميرا...';
+  document.getElementById('cam-status').textContent = 'اضغط لتشغيل الكاميرا';
   document.getElementById('scan-line').style.display = 'none';
   document.getElementById('btn-start-cam').style.display = 'flex';
   document.getElementById('btn-stop-cam').style.display = 'none';
 }
 
 function startScanning() {
+  if (isScanning) return; // prevent duplicate loops
+  isScanning = true;
+
   const video = document.getElementById('qr-video');
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
-  let scanning = true;
 
-  function tick() {
-    if (!scanning) return;
-    if (video.readyState === video.HAVE_ENOUGH_DATA) {
-      // Downscale to 400px max for faster processing
-      const scale = Math.min(1, 400 / Math.max(video.videoWidth, video.videoHeight));
-      canvas.width = video.videoWidth * scale;
-      canvas.height = video.videoHeight * scale;
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  scanInterval = setInterval(() => {
+    // Make sure video is playing and has real dimensions
+    if (!videoStream) { clearInterval(scanInterval); isScanning = false; return; }
+    if (video.readyState < 2) return;
+    if (video.videoWidth === 0 || video.videoHeight === 0) return;
+
+    // Draw frame to canvas
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0);
+
+    // Scan for QR
+    try {
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const code = jsQR(imageData.data, imageData.width, imageData.height, {
         inversionAttempts: 'attemptBoth'
       });
-      if (code) {
-        scanning = false;
+      if (code && code.data) {
+        clearInterval(scanInterval);
+        isScanning = false;
         onQRDetected(code.data);
-        return;
       }
-    }
-    scanInterval = requestAnimationFrame(tick);
-  }
-  scanInterval = requestAnimationFrame(tick);
+    } catch(e) { /* ignore frame errors */ }
+
+  }, 200); // scan every 200ms — reliable and not too heavy
 }
 
-function onQRDetected(data) {
-  // Stop scanning correctly
-  if (scanInterval) { cancelAnimationFrame(scanInterval); scanInterval = null; }
+function onQRDetected(rawData) {
+  const data = rawData.trim();
+  const status = document.getElementById('cam-status');
 
-  // Trim any whitespace that might cause JSON parse issues
-  const cleaned = data.trim();
-
-  // Try parse JSON
   let session = null;
-  try { session = JSON.parse(cleaned); } catch(e) { session = null; }
+  try { session = JSON.parse(data); } catch(e) {}
 
-  // If not JSON, try to handle plain text QR codes too
   if (!session || !session.subject) {
-    document.getElementById('cam-status').textContent = '⚠️ الرمز غير مدعوم — جرّب رمز QR صادر من النظام';
-    document.getElementById('cam-status').style.background = 'linear-gradient(transparent, rgba(153,27,27,0.7))';
+    status.textContent = '⚠️ رمز غير معروف، حاولي تاني...';
     setTimeout(() => {
-      document.getElementById('cam-status').style.background = 'linear-gradient(transparent, rgba(0,0,0,0.7))';
-      document.getElementById('cam-status').textContent = '🔍 جاري البحث عن رمز QR...';
+      status.textContent = '🔍 وجّه الكاميرا نحو رمز QR...';
       if (videoStream) startScanning();
-    }, 2500);
+    }, 2000);
     return;
   }
 
-  // Success! Vibrate on mobile
+  // نجاح!
   if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
-
   stopCamera();
   scannedSession = session;
-  document.getElementById('cam-status').textContent = '✅ تم المسح بنجاح!';
 
-  // Show extracted data
   document.getElementById('ex-subject').textContent = session.subject;
   document.getElementById('ex-teacher').textContent = session.teacher;
   document.getElementById('ex-group').textContent = session.group;
