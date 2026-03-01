@@ -384,7 +384,7 @@
       <span style="font-size:1.3rem">⚙️</span>
       <span style="font-size:0.68rem;font-weight:700;color:#64748b">إنشاء QR</span>
     </button>
-    <button onclick="showPage('qr');switchTab('scan')" class="mob-nav-btn" id="mnav-scan" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:0.2rem;background:none;border:none;padding:0.4rem;cursor:pointer;border-radius:10px;transition:background 0.2s">
+    <button onclick="goToScan()" class="mob-nav-btn" id="mnav-scan" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:0.2rem;background:none;border:none;padding:0.4rem;cursor:pointer;border-radius:10px;transition:background 0.2s">
       <span style="font-size:1.3rem">📷</span>
       <span style="font-size:0.68rem;font-weight:700;color:#64748b">مسح</span>
     </button>
@@ -429,7 +429,7 @@
           <div class="card-arrow text-blue-600">ابدأ الآن →</div>
         </div>
       </div>
-      <div class="card home-card reveal" style="transition-delay:0.2s" onclick="showPage('qr'); switchTab('scan')">
+      <div class="card home-card reveal" style="transition-delay:0.2s" onclick="goToScan()">
         <div class="card-icon icon-green">📷</div>
         <div class="home-card-content">
           <h3>مسح QR وتسجيل الحضور</h3>
@@ -477,7 +477,7 @@
 
     <div class="tabs mb-6">
       <button class="tab-btn active" id="tab-create" onclick="switchTab('create')">⚙️ إنشاء QR Code</button>
-      <button class="tab-btn" id="tab-scan" onclick="switchTab('scan')">📷 تسجيل الحضور</button>
+      <button class="tab-btn" id="tab-scan" onclick="goToScan()">📷 تسجيل الحضور</button>
       <button class="tab-btn" id="tab-records" onclick="switchTab('records')">📋 السجلات</button>
     </div>
 
@@ -1342,6 +1342,36 @@ updateStats();
 setDefaultDate('m-date');
 setDefaultDate('qr-date');
 
+// ========== GO TO SCAN (unified navigation) ==========
+function goToScan() {
+  // First show the QR page
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-qr').classList.add('active');
+  const backBtn = document.getElementById('backBtn');
+  if (backBtn) backBtn.style.display = 'flex';
+  window.scrollTo(0, 0);
+
+  // Stop camera if running
+  stopCamera();
+
+  // Switch to scan tab
+  ['create','scan','records'].forEach(t => {
+    document.getElementById('tab-'+t).classList.toggle('active', t === 'scan');
+    document.getElementById('panel-'+t).style.display = (t === 'scan') ? 'block' : 'none';
+  });
+
+  // Reset scan state
+  scannedSession = null;
+  document.getElementById('scan-step1').style.display = 'block';
+  document.getElementById('scan-step2').style.display = 'none';
+  if (document.getElementById('scan-result-ok'))
+    document.getElementById('scan-result-ok').style.display = 'none';
+  document.getElementById('extracted-empty').style.display = 'block';
+  document.getElementById('extracted-data').style.display = 'none';
+
+  updateMobileNav('scan');
+}
+
 // ========== MANUAL SESSION MODAL ==========
 function showManualSessionEntry() {
   const modal = document.getElementById('manual-session-modal');
@@ -1371,6 +1401,7 @@ function confirmManualSession() {
 }
 
 // Expose new functions
+window.goToScan = goToScan;
 window.showManualSessionEntry = showManualSessionEntry;
 window.closeManualSession = closeManualSession;
 window.confirmManualSession = confirmManualSession;
