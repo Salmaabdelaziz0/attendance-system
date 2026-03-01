@@ -536,51 +536,71 @@
     <div id="panel-scan" style="display:none">
 
       <!-- STEP 1: Camera Scanner -->
-      <div id="scan-step1">
-        <div class="card p-5" style="max-width:480px;margin:0 auto">
-          <h2 style="font-size:1.1rem;font-weight:900;margin-bottom:0.25rem">📷 مسح رمز QR</h2>
-          <p style="font-size:0.82rem;color:#64748b;margin-bottom:1rem">وجّه الكاميرا نحو رمز QR الخاص بالمادة</p>
+      <div id="scan-step1" class="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div class="card p-6">
+          <h2 class="text-lg font-black text-gray-800 mb-1">📷 مسح رمز QR</h2>
+          <p class="text-sm text-gray-500 mb-4">وجّه الكاميرا نحو رمز QR الخاص بالمادة</p>
 
-          <!-- Camera viewport - simple and clean -->
-          <div style="position:relative;background:#000;border-radius:16px;overflow:hidden;width:100%;max-width:360px;margin:0 auto">
-            <video id="qr-video" playsinline autoplay muted style="width:100%;display:block;min-height:200px"></video>
-            <!-- simple corner frame -->
-            <div style="position:absolute;inset:0;pointer-events:none">
-              <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:55%;padding-top:55%">
-                <div style="position:absolute;inset:0;border:3px solid rgba(255,255,255,0.8);border-radius:12px"></div>
-              </div>
+          <!-- Camera viewport -->
+          <div id="camera-box" style="position:relative;background:#0f172a;border-radius:16px;overflow:hidden;aspect-ratio:1/1;max-width:340px;margin:0 auto">
+            <video id="qr-video" style="width:100%;height:100%;object-fit:cover;display:block" autoplay muted playsinline></video>
+            <!-- Scanning overlay -->
+            <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none">
+              <div id="scan-frame" style="width:60%;aspect-ratio:1/1;border:3px solid rgba(59,130,246,0.9);border-radius:16px;box-shadow:0 0 0 9999px rgba(0,0,0,0.4);animation:scanPulse 1.5s ease-in-out infinite"></div>
             </div>
-            <div id="cam-status" style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.6);padding:0.6rem;text-align:center;color:white;font-size:0.82rem;font-weight:600">اضغط لتشغيل الكاميرا</div>
+            <!-- scan line -->
+            <div id="scan-line" style="position:absolute;left:20%;right:20%;height:2px;background:linear-gradient(90deg,transparent,#3b82f6,transparent);animation:scanLine 2s linear infinite;display:none"></div>
+            <!-- Status overlay -->
+            <div id="cam-status" style="position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(0,0,0,0.7));padding:0.75rem;text-align:center;color:white;font-size:0.82rem;font-weight:600">جاري تشغيل الكاميرا...</div>
           </div>
 
-          <div id="scan-result-ok" style="display:none;background:#dcfce7;border:1.5px solid #86efac;border-radius:12px;padding:1rem;margin-top:1rem;text-align:center">
-            <div style="font-size:1.5rem">✅</div>
-            <div style="font-weight:800;color:#166534;margin-top:0.25rem">تم قراءة الرمز بنجاح!</div>
-            <div id="scan-result-text" style="font-size:0.82rem;color:#15803d;margin-top:0.25rem"></div>
-          </div>
-
-          <div style="display:flex;gap:0.75rem;margin-top:1rem">
+          <div style="margin-top:1rem;display:flex;gap:0.75rem;flex-wrap:wrap">
             <button class="btn btn-primary btn-sm" id="btn-start-cam" onclick="startCamera()" style="flex:1">📷 تشغيل الكاميرا</button>
             <button class="btn btn-outline btn-sm" id="btn-stop-cam" onclick="stopCamera()" style="flex:1;display:none">⏹ إيقاف</button>
           </div>
-
-          <div id="extracted-data" style="display:none;margin-top:1rem">
-            <div style="background:linear-gradient(135deg,#eff6ff,#f0fdfa);border:1px solid #bfdbfe;border-radius:14px;padding:1.25rem">
-              <div style="display:grid;gap:0.6rem">
-                <div style="display:flex;gap:0.5rem;align-items:center"><span>📚</span><div><div style="font-size:0.72rem;color:#64748b">المادة</div><div id="ex-subject" style="font-weight:800;color:#0f172a"></div></div></div>
-                <div style="display:flex;gap:0.5rem;align-items:center"><span>👨‍🏫</span><div><div style="font-size:0.72rem;color:#64748b">الأستاذ</div><div id="ex-teacher" style="font-weight:800;color:#0f172a"></div></div></div>
-                <div style="display:flex;gap:0.5rem;align-items:center"><span>👥</span><div><div style="font-size:0.72rem;color:#64748b">المجموعة</div><div id="ex-group" style="font-weight:800;color:#0f172a"></div></div></div>
-                <div style="display:flex;gap:0.5rem;align-items:center"><span>📅</span><div><div style="font-size:0.72rem;color:#64748b">التاريخ</div><div id="ex-date" style="font-weight:800;color:#0f172a"></div></div></div>
-              </div>
-            </div>
-            <button class="btn btn-green btn-full mt-3" onclick="proceedToStudentForm()">التالي: أدخل بياناتك ←</button>
-          </div>
-
-          <div id="extracted-empty" style="margin-top:0.75rem;text-align:center;color:#94a3b8;font-size:0.82rem;padding:0.5rem">في انتظار مسح الرمز...</div>
-
-          <button onclick="showManualSessionEntry()" style="width:100%;margin-top:0.75rem;background:none;border:none;color:#64748b;font-size:0.8rem;font-family:'Cairo',sans-serif;font-weight:600;cursor:pointer;padding:0.4rem;text-decoration:underline">
+          <button onclick="showManualSessionEntry()" style="width:100%;margin-top:0.6rem;background:none;border:none;color:#64748b;font-size:0.8rem;font-family:'Cairo',sans-serif;font-weight:600;cursor:pointer;padding:0.4rem;text-decoration:underline">
             ✍️ أو أدخل بيانات الجلسة يدوياً
           </button>
+          <div class="info-strip mt-3" style="font-size:0.82rem">
+            💡 بعد المسح ستظهر بيانات المادة تلقائياً وتكمّل اسمك وكودك فقط
+          </div>
+        </div>
+
+        <div class="card p-6 flex flex-col justify-between">
+          <div>
+            <h2 class="text-lg font-black text-gray-800 mb-4">بيانات المادة المُستخرجة</h2>
+            <div id="extracted-empty" style="text-align:center;padding:2.5rem 1rem;color:#94a3b8">
+              <div style="font-size:3.5rem;opacity:0.3">🔲</div>
+              <p style="font-size:0.9rem;margin-top:0.5rem">في انتظار مسح الرمز...</p>
+            </div>
+            <div id="extracted-data" style="display:none">
+              <div style="background:linear-gradient(135deg,#eff6ff,#f0fdfa);border:1px solid #bfdbfe;border-radius:14px;padding:1.25rem;margin-bottom:1rem">
+                <div style="display:grid;gap:0.75rem">
+                  <div style="display:flex;align-items:center;gap:0.6rem">
+                    <span style="font-size:1.1rem">📚</span>
+                    <div><div style="font-size:0.75rem;color:#64748b;font-weight:600">المادة</div><div id="ex-subject" style="font-weight:800;color:#0f172a;font-size:1rem"></div></div>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:0.6rem">
+                    <span style="font-size:1.1rem">👨‍🏫</span>
+                    <div><div style="font-size:0.75rem;color:#64748b;font-weight:600">الأستاذ</div><div id="ex-teacher" style="font-weight:800;color:#0f172a"></div></div>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:0.6rem">
+                    <span style="font-size:1.1rem">👥</span>
+                    <div><div style="font-size:0.75rem;color:#64748b;font-weight:600">المجموعة</div><div id="ex-group" style="font-weight:800;color:#0f172a"></div></div>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:0.6rem">
+                    <span style="font-size:1.1rem">📅</span>
+                    <div><div style="font-size:0.75rem;color:#64748b;font-weight:600">التاريخ</div><div id="ex-date" style="font-weight:800;color:#0f172a"></div></div>
+                  </div>
+                </div>
+              </div>
+              <button class="btn btn-green btn-full" onclick="proceedToStudentForm()">التالي: أدخل بياناتك ←</button>
+            </div>
+          </div>
+          <div style="margin-top:1rem">
+            <h3 style="font-size:0.9rem;font-weight:700;color:#475569;margin-bottom:0.75rem">آخر 5 سجلات</h3>
+            <div id="recent-records"></div>
+          </div>
         </div>
       </div>
 
@@ -897,12 +917,12 @@ function switchTab(tab) {
   if (tab === 'records') renderRecordsTable();
   if (tab === 'scan') {
     renderRecentAttendance();
-    document.getElementById('scan-step1').style.display = 'block';
+    // reset to step 1
+    document.getElementById('scan-step1').style.display = 'grid';
     document.getElementById('scan-step2').style.display = 'none';
-    document.getElementById('scan-result-ok').style.display = 'none';
+    scannedSession = null;
     document.getElementById('extracted-empty').style.display = 'block';
     document.getElementById('extracted-data').style.display = 'none';
-    scannedSession = null;
   }
 }
 
@@ -1081,29 +1101,27 @@ function onQRDetected(rawData) {
   const data = rawData.trim();
   if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
 
+  // Try JSON parse (our QR format)
   let session = null;
   try { session = JSON.parse(data); } catch(e) {}
 
-  stopCamera();
-
   if (!session || !session.subject) {
-    // قرأ QR بس مش من نظامنا
-    session = {
-      subject: data.substring(0, 50),
-      teacher: '—',
-      group: '—',
-      date: new Date().toISOString().split('T')[0]
-    };
+    // QR read successfully but not our format — show the raw data and let user proceed
+    document.getElementById('cam-status').textContent = '✅ تم قراءة الرمز!';
+    document.getElementById('ex-subject').textContent = data.substring(0, 40);
+    document.getElementById('ex-teacher').textContent = '—';
+    document.getElementById('ex-group').textContent = '—';
+    document.getElementById('ex-date').textContent = new Date().toISOString().split('T')[0];
+    document.getElementById('extracted-empty').style.display = 'none';
+    document.getElementById('extracted-data').style.display = 'block';
+    scannedSession = { subject: data.substring(0, 40), teacher: '—', group: '—', date: new Date().toISOString().split('T')[0] };
+    stopCamera();
+    return;
   }
 
+  // Our QR format — perfect!
+  stopCamera();
   scannedSession = session;
-
-  // Show success
-  document.getElementById('scan-result-ok').style.display = 'block';
-  document.getElementById('scan-result-text').textContent = session.subject !== data.substring(0,50)
-    ? `${session.subject} — ${session.teacher}` : 'تم القراءة';
-
-  // Show data
   document.getElementById('ex-subject').textContent = session.subject;
   document.getElementById('ex-teacher').textContent = session.teacher;
   document.getElementById('ex-group').textContent = session.group;
