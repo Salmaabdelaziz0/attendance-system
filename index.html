@@ -331,7 +331,6 @@
       .records-table td:nth-child(7) { order: 7; margin-right: auto; }
 
       /* Scan steps */
-      #scan-step1 { display: flex !important; flex-direction: column; }
       #scan-step2 .grid { display: flex; flex-direction: column; }
 
       /* Manual form grid */
@@ -1124,7 +1123,7 @@ function proceedToStudentForm() {
 
 function backToScan() {
   document.getElementById('scan-step2').style.display = 'none';
-  document.getElementById('scan-step1').style.display = 'grid';
+  document.getElementById('scan-step1').style.display = 'block';
   document.getElementById('att-name').value = '';
   document.getElementById('att-id').value = '';
   hideAlert(document.getElementById('att-alert'));
