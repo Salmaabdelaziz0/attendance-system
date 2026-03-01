@@ -1010,6 +1010,14 @@ let videoStream = null;
 let scanInterval = null;
 let scannedSession = null;
 let isScanning = false;
+let barcodeDetector = null;
+
+// Try to use native BarcodeDetector (fast, hardware-accelerated on mobile)
+if ('BarcodeDetector' in window) {
+  try {
+    barcodeDetector = new BarcodeDetector({ formats: ['qr_code'] });
+  } catch(e) { barcodeDetector = null; }
+}
 
 async function startCamera() {
   const video = document.getElementById('qr-video');
@@ -1022,21 +1030,13 @@ async function startCamera() {
     video.srcObject = videoStream;
     video.setAttribute('playsinline', true);
     await video.play();
-
     status.textContent = '🔍 وجّه الكاميرا نحو رمز QR...';
     document.getElementById('scan-line').style.display = 'block';
     document.getElementById('btn-start-cam').style.display = 'none';
     document.getElementById('btn-stop-cam').style.display = 'flex';
 
-    // Wait for video to be ready then start scanning
-    video.addEventListener('loadeddata', () => {
-      if (!isScanning) startScanning();
-    }, { once: true });
-
-    // Fallback if loadeddata already fired
-    if (video.readyState >= 2) {
-      if (!isScanning) startScanning();
-    }
+    // start scanning after short delay to let camera warm up
+    setTimeout(() => { if (!isScanning) startScanning(); }, 500);
 
   } catch(e) {
     status.textContent = '❌ تعذّر الوصول للكاميرا — تأكد من منح الإذن';
@@ -1056,61 +1056,72 @@ function stopCamera() {
 }
 
 function startScanning() {
-  if (isScanning) return; // prevent duplicate loops
+  if (isScanning) return;
   isScanning = true;
-
   const video = document.getElementById('qr-video');
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
-  scanInterval = setInterval(() => {
-    // Make sure video is playing and has real dimensions
-    if (!videoStream) { clearInterval(scanInterval); isScanning = false; return; }
-    if (video.readyState < 2) return;
-    if (video.videoWidth === 0 || video.videoHeight === 0) return;
+  if (barcodeDetector) {
+    // ===== METHOD 1: Native BarcodeDetector (fast on Android/iOS) =====
+    scanInterval = setInterval(async () => {
+      if (!videoStream || !isScanning) return;
+      try {
+        const codes = await barcodeDetector.detect(video);
+        if (codes.length > 0) {
+          clearInterval(scanInterval);
+          isScanning = false;
+          onQRDetected(codes[0].rawValue);
+        }
+      } catch(e) {}
+    }, 300);
 
-    // Draw frame to canvas
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    ctx.drawImage(video, 0, 0);
-
-    // Scan for QR
-    try {
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const code = jsQR(imageData.data, imageData.width, imageData.height, {
-        inversionAttempts: 'attemptBoth'
-      });
-      if (code && code.data) {
-        clearInterval(scanInterval);
-        isScanning = false;
-        onQRDetected(code.data);
-      }
-    } catch(e) { /* ignore frame errors */ }
-
-  }, 200); // scan every 200ms — reliable and not too heavy
+  } else {
+    // ===== METHOD 2: jsQR fallback =====
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    scanInterval = setInterval(() => {
+      if (!videoStream || !isScanning) return;
+      if (video.readyState < 2 || video.videoWidth === 0) return;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0);
+      try {
+        const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(img.data, img.width, img.height, { inversionAttempts: 'attemptBoth' });
+        if (code && code.data) {
+          clearInterval(scanInterval);
+          isScanning = false;
+          onQRDetected(code.data);
+        }
+      } catch(e) {}
+    }, 300);
+  }
 }
 
 function onQRDetected(rawData) {
   const data = rawData.trim();
-  const status = document.getElementById('cam-status');
+  if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
 
+  // Try JSON parse (our QR format)
   let session = null;
   try { session = JSON.parse(data); } catch(e) {}
 
   if (!session || !session.subject) {
-    status.textContent = '⚠️ رمز غير معروف، حاولي تاني...';
-    setTimeout(() => {
-      status.textContent = '🔍 وجّه الكاميرا نحو رمز QR...';
-      if (videoStream) startScanning();
-    }, 2000);
+    // QR read successfully but not our format — show the raw data and let user proceed
+    document.getElementById('cam-status').textContent = '✅ تم قراءة الرمز!';
+    document.getElementById('ex-subject').textContent = data.substring(0, 40);
+    document.getElementById('ex-teacher').textContent = '—';
+    document.getElementById('ex-group').textContent = '—';
+    document.getElementById('ex-date').textContent = new Date().toISOString().split('T')[0];
+    document.getElementById('extracted-empty').style.display = 'none';
+    document.getElementById('extracted-data').style.display = 'block';
+    scannedSession = { subject: data.substring(0, 40), teacher: '—', group: '—', date: new Date().toISOString().split('T')[0] };
+    stopCamera();
     return;
   }
 
-  // نجاح!
-  if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+  // Our QR format — perfect!
   stopCamera();
   scannedSession = session;
-
   document.getElementById('ex-subject').textContent = session.subject;
   document.getElementById('ex-teacher').textContent = session.teacher;
   document.getElementById('ex-group').textContent = session.group;
