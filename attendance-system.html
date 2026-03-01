@@ -1,0 +1,1337 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>نظام تسجيل الحضور</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
+  <style>
+    :root {
+      --primary: #1e40af;
+      --primary-light: #3b82f6;
+      --secondary: #0f766e;
+      --accent: #ea580c;
+      --surface: #f8fafc;
+      --card: #ffffff;
+      --border: #e2e8f0;
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --shadow-soft: 0 4px 24px rgba(30,64,175,0.08);
+      --shadow-hover: 0 8px 40px rgba(30,64,175,0.18);
+    }
+    * { font-family: 'Cairo', sans-serif; box-sizing: border-box; }
+    body {
+      background: linear-gradient(135deg, #f0f4ff 0%, #e8f5f3 50%, #fff7ed 100%);
+      min-height: 100vh;
+      color: var(--text);
+    }
+    .page { display: none; }
+    .page.active { display: block; }
+
+    /* Animated background shapes */
+    .bg-shapes {
+      position: fixed; inset: 0; overflow: hidden; pointer-events: none; z-index: 0;
+    }
+    .bg-shape {
+      position: absolute; border-radius: 50%; opacity: 0.04;
+      animation: floatShape 20s infinite ease-in-out;
+    }
+    .bg-shape:nth-child(1) { width: 600px; height: 600px; background: var(--primary); top: -200px; right: -200px; animation-delay: 0s; }
+    .bg-shape:nth-child(2) { width: 400px; height: 400px; background: var(--secondary); bottom: -100px; left: -100px; animation-delay: -7s; }
+    .bg-shape:nth-child(3) { width: 300px; height: 300px; background: var(--accent); top: 50%; left: 30%; animation-delay: -14s; }
+    @keyframes floatShape {
+      0%, 100% { transform: translate(0,0) scale(1); }
+      33% { transform: translate(30px,-30px) scale(1.05); }
+      66% { transform: translate(-20px,20px) scale(0.97); }
+    }
+    @keyframes scanPulse {
+      0%, 100% { border-color: rgba(59,130,246,0.9); box-shadow: 0 0 0 9999px rgba(0,0,0,0.4), 0 0 20px rgba(59,130,246,0.4); }
+      50% { border-color: rgba(16,185,129,0.9); box-shadow: 0 0 0 9999px rgba(0,0,0,0.4), 0 0 30px rgba(16,185,129,0.6); }
+    }
+    @keyframes scanLine {
+      0% { top: 20%; opacity: 1; }
+      100% { top: 80%; opacity: 0.3; }
+    }
+
+    .container-main { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 2rem 1rem; }
+
+    /* Header */
+    .site-header {
+      background: rgba(255,255,255,0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; z-index: 100;
+      padding: 0.75rem 1.5rem;
+    }
+    .header-inner { max-width: 1100px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
+    .logo { font-size: 1.2rem; font-weight: 800; color: var(--primary); letter-spacing: -0.5px; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; }
+    .logo span { font-size: 1.4rem; }
+    .btn-back {
+      display: flex; align-items: center; gap: 0.4rem;
+      background: var(--surface); border: 1px solid var(--border);
+      color: var(--text-muted); padding: 0.45rem 1rem;
+      border-radius: 12px; font-size: 0.85rem; font-weight: 600;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .btn-back:hover { background: #e2e8f0; color: var(--text); }
+
+    /* Cards */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      box-shadow: var(--shadow-soft);
+      transition: box-shadow 0.3s, transform 0.3s;
+    }
+    .card:hover { box-shadow: var(--shadow-hover); transform: translateY(-2px); }
+
+    /* Home page cards */
+    .home-card {
+      cursor: pointer;
+      padding: 2.5rem 2rem;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .home-card::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: linear-gradient(135deg, transparent 60%, rgba(255,255,255,0.5));
+      opacity: 0; transition: opacity 0.3s;
+    }
+    .home-card:hover::before { opacity: 1; }
+    .home-card .card-icon {
+      width: 72px; height: 72px;
+      border-radius: 20px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2rem; margin: 0 auto 1.25rem;
+    }
+    .icon-blue { background: linear-gradient(135deg, #dbeafe, #bfdbfe); }
+    .icon-green { background: linear-gradient(135deg, #d1fae5, #a7f3d0); }
+    .icon-orange { background: linear-gradient(135deg, #ffedd5, #fed7aa); }
+    .home-card h3 { font-size: 1.2rem; font-weight: 800; margin-bottom: 0.5rem; color: var(--text); }
+    .home-card p { font-size: 0.9rem; color: var(--text-muted); font-weight: 400; line-height: 1.6; }
+    .home-card .card-arrow {
+      margin-top: 1.25rem;
+      display: inline-flex; align-items: center; gap: 0.35rem;
+      font-size: 0.85rem; font-weight: 700;
+      transition: gap 0.2s;
+    }
+    .home-card:hover .card-arrow { gap: 0.6rem; }
+    .text-blue-600 { color: #2563eb; }
+    .text-green-600 { color: #059669; }
+    .text-orange-600 { color: #ea580c; }
+
+    /* Forms */
+    .form-label { display: block; font-size: 0.9rem; font-weight: 600; color: var(--text); margin-bottom: 0.4rem; }
+    .form-input {
+      width: 100%; padding: 0.75rem 1rem;
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      font-family: 'Cairo', sans-serif; font-size: 0.95rem;
+      color: var(--text); background: #f8fafc;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      outline: none;
+    }
+    .form-input:focus { border-color: var(--primary-light); box-shadow: 0 0 0 3px rgba(59,130,246,0.12); background: white; }
+    .form-input::placeholder { color: #94a3b8; }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+      padding: 0.75rem 1.75rem; border-radius: 14px;
+      font-family: 'Cairo', sans-serif; font-size: 0.95rem; font-weight: 700;
+      cursor: pointer; transition: all 0.2s; border: none;
+      letter-spacing: 0.3px;
+    }
+    .btn-primary { background: linear-gradient(135deg, #1e40af, #3b82f6); color: white; box-shadow: 0 4px 14px rgba(30,64,175,0.3); }
+    .btn-primary:hover { box-shadow: 0 6px 20px rgba(30,64,175,0.45); transform: translateY(-1px); }
+    .btn-green { background: linear-gradient(135deg, #0f766e, #14b8a6); color: white; box-shadow: 0 4px 14px rgba(15,118,110,0.3); }
+    .btn-green:hover { box-shadow: 0 6px 20px rgba(15,118,110,0.45); transform: translateY(-1px); }
+    .btn-orange { background: linear-gradient(135deg, #c2410c, #ea580c); color: white; box-shadow: 0 4px 14px rgba(234,88,12,0.3); }
+    .btn-orange:hover { box-shadow: 0 6px 20px rgba(234,88,12,0.45); transform: translateY(-1px); }
+    .btn-outline {
+      background: white; border: 1.5px solid var(--border);
+      color: var(--text); box-shadow: var(--shadow-soft);
+    }
+    .btn-outline:hover { background: var(--surface); box-shadow: var(--shadow-hover); }
+    .btn-sm { padding: 0.5rem 1.1rem; font-size: 0.85rem; border-radius: 10px; }
+    .btn-full { width: 100%; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; }
+
+    /* Tabs */
+    .tabs { display: flex; background: var(--surface); border-radius: 14px; padding: 4px; border: 1px solid var(--border); gap: 4px; }
+    .tab-btn {
+      flex: 1; padding: 0.65rem 1rem; border-radius: 10px; font-family: 'Cairo', sans-serif;
+      font-size: 0.9rem; font-weight: 700; cursor: pointer; border: none;
+      transition: all 0.2s; background: transparent; color: var(--text-muted);
+    }
+    .tab-btn.active { background: white; color: var(--primary); box-shadow: 0 2px 8px rgba(30,64,175,0.15); }
+
+    /* QR display */
+    .qr-display-box {
+      background: white; border: 2px dashed #cbd5e1;
+      border-radius: 20px; padding: 2rem;
+      display: flex; flex-direction: column; align-items: center; gap: 1.25rem;
+    }
+    .qr-display-box img { border-radius: 12px; max-width: 220px; width: 100%; }
+    .qr-meta { text-align: center; }
+    .qr-meta .subject { font-size: 1.1rem; font-weight: 800; color: var(--text); }
+    .qr-meta .details { font-size: 0.85rem; color: var(--text-muted); margin-top: 0.3rem; }
+
+    /* Records table */
+    .records-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    .records-table th {
+      background: var(--surface); padding: 0.7rem 1rem;
+      font-weight: 700; color: var(--text-muted); text-align: right;
+      border-bottom: 1px solid var(--border);
+    }
+    .records-table td { padding: 0.7rem 1rem; border-bottom: 1px solid #f1f5f9; color: var(--text); }
+    .records-table tr:last-child td { border-bottom: none; }
+    .records-table tr:hover td { background: #f8fafc; }
+    .badge {
+      display: inline-flex; align-items: center;
+      padding: 0.2rem 0.65rem; border-radius: 8px;
+      font-size: 0.78rem; font-weight: 700;
+    }
+    .badge-green { background: #dcfce7; color: #15803d; }
+    .badge-blue { background: #dbeafe; color: #1d4ed8; }
+
+    /* Section title */
+    .section-title { font-size: 1.5rem; font-weight: 900; color: var(--text); }
+    .section-subtitle { font-size: 0.95rem; color: var(--text-muted); margin-top: 0.25rem; font-weight: 400; }
+
+    /* Alert */
+    .alert {
+      padding: 0.9rem 1.1rem; border-radius: 12px;
+      font-size: 0.9rem; font-weight: 600; display: flex; align-items: center; gap: 0.5rem;
+    }
+    .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    .alert-error { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+
+    /* Divider */
+    .divider { height: 1px; background: var(--border); margin: 1.5rem 0; }
+
+    /* Hero section */
+    .hero { text-align: center; padding: 3.5rem 1rem 2.5rem; }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      background: rgba(30,64,175,0.08); border: 1px solid rgba(30,64,175,0.15);
+      color: var(--primary); padding: 0.35rem 0.9rem;
+      border-radius: 100px; font-size: 0.82rem; font-weight: 700;
+      margin-bottom: 1.25rem;
+    }
+    .hero h1 { font-size: clamp(2rem, 5vw, 3rem); font-weight: 900; color: var(--text); line-height: 1.2; }
+    .hero h1 span { color: var(--primary); }
+    .hero p { font-size: 1.05rem; color: var(--text-muted); margin-top: 0.75rem; font-weight: 400; }
+
+    /* Scroll reveal */
+    .reveal { opacity: 0; transform: translateY(20px); transition: opacity 0.5s, transform 0.5s; }
+    .reveal.visible { opacity: 1; transform: none; }
+
+    /* Overflow scroll for table on mobile */
+    .table-wrapper { overflow-x: auto; border-radius: 14px; border: 1px solid var(--border); }
+
+    /* Empty state */
+    .empty-state { text-align: center; padding: 3rem 1rem; color: var(--text-muted); }
+    .empty-state .icon { font-size: 3rem; margin-bottom: 0.75rem; }
+    .empty-state p { font-size: 0.95rem; }
+
+    /* QR info strip */
+    .info-strip {
+      background: linear-gradient(135deg, #eff6ff, #f0fdfa);
+      border: 1px solid #bfdbfe; border-radius: 14px;
+      padding: 1rem 1.25rem; font-size: 0.88rem; color: var(--text-muted);
+    }
+    .info-strip strong { color: var(--text); }
+
+    @media (max-width: 640px) {
+      /* General */
+      .container-main { padding: 0.75rem 0.75rem 5rem; }
+      .hero { padding: 1.75rem 0.5rem 1.25rem; }
+      .hero h1 { font-size: 1.6rem; }
+      .hero p { font-size: 0.9rem; }
+      .section-title { font-size: 1.2rem; }
+      .section-subtitle { font-size: 0.85rem; }
+
+      /* Header */
+      .site-header { padding: 0.6rem 1rem; }
+      .logo { font-size: 1rem; }
+      .logo span { font-size: 1.2rem; }
+      #db-status { font-size: 0.7rem; }
+      .btn-back { padding: 0.35rem 0.7rem; font-size: 0.78rem; }
+
+      /* Home cards — horizontal on mobile */
+      .home-card {
+        padding: 1.1rem 1rem;
+        display: flex; align-items: center;
+        text-align: right; gap: 1rem;
+      }
+      .home-card .card-icon {
+        width: 52px; height: 52px; flex-shrink: 0;
+        border-radius: 14px; font-size: 1.5rem; margin: 0;
+      }
+      .home-card-content { flex: 1; min-width: 0; }
+      .home-card h3 { font-size: 1rem; margin-bottom: 0.2rem; }
+      .home-card p { font-size: 0.8rem; line-height: 1.4; display: none; }
+      .home-card .card-arrow { margin-top: 0.3rem; font-size: 0.8rem; }
+
+      /* Stats */
+      .card.mt-6 .grid { gap: 0.5rem; }
+      #stat-total, #stat-today, #stat-subjects { font-size: 1.5rem; }
+
+      /* Tabs */
+      .tabs { gap: 2px; padding: 3px; }
+      .tab-btn { padding: 0.55rem 0.4rem; font-size: 0.75rem; }
+
+      /* Cards padding */
+      .card.p-6 { padding: 1rem; }
+      .card.p-5 { padding: 1rem; }
+
+      /* Forms */
+      .form-input { padding: 0.7rem 0.875rem; font-size: 0.9rem; }
+      .form-label { font-size: 0.82rem; }
+      .space-y-4 > * + * { margin-top: 0.875rem; }
+
+      /* Buttons */
+      .btn { padding: 0.7rem 1.25rem; font-size: 0.88rem; }
+      .btn-sm { padding: 0.45rem 0.875rem; font-size: 0.78rem; }
+
+      /* Camera box — full width on mobile */
+      #camera-box { max-width: 100% !important; border-radius: 14px; }
+
+      /* QR result */
+      .qr-display-box { padding: 1.25rem; }
+      #qr-canvas-container canvas { max-width: 180px !important; height: 180px !important; }
+
+      /* Records table — card style on mobile */
+      .records-table thead { display: none; }
+      .records-table tr {
+        display: flex; flex-wrap: wrap;
+        padding: 0.75rem; gap: 0.4rem;
+        border-bottom: 1px solid #f1f5f9;
+      }
+      .records-table td {
+        padding: 0; border: none;
+        font-size: 0.82rem;
+      }
+      .records-table td:nth-child(1) { order: 5; }
+      .records-table td:nth-child(2) { font-weight: 800; width: 100%; font-size: 0.9rem; order: 1; }
+      .records-table td:nth-child(3) { order: 2; color: #64748b; }
+      .records-table td:nth-child(3)::before { content: '🪪 '; }
+      .records-table td:nth-child(4) { order: 3; color: #1d4ed8; font-weight: 600; }
+      .records-table td:nth-child(4)::before { content: '📚 '; }
+      .records-table td:nth-child(5) { order: 4; color: #64748b; }
+      .records-table td:nth-child(5)::before { content: '👥 '; }
+      .records-table td:nth-child(6) { order: 6; color: #94a3b8; font-size: 0.75rem; width: 100%; }
+      .records-table td:nth-child(7) { order: 7; margin-right: auto; }
+
+      /* Scan steps */
+      #scan-step1 { display: flex !important; flex-direction: column; }
+      #scan-step2 .grid { display: flex; flex-direction: column; }
+
+      /* Manual form grid */
+      .md\:col-span-3, .md\:col-span-2 { grid-column: span 1 !important; }
+
+      /* Bottom nav feel — sticky submit buttons */
+      .btn-full { min-height: 48px; font-size: 1rem; border-radius: 14px; }
+
+      /* Divider spacing */
+      .divider { margin: 1rem 0; }
+
+      /* Info strip */
+      .info-strip { font-size: 0.8rem; padding: 0.75rem; }
+
+      /* Alert */
+      .alert { font-size: 0.83rem; padding: 0.75rem; }
+
+      /* Table wrapper */
+      .table-wrapper { border-radius: 12px; }
+
+      /* Section header buttons */
+      .flex.items-center.justify-between { flex-wrap: wrap; gap: 0.5rem; }
+    }
+
+    /* Touch improvements for all mobile */
+    @media (hover: none) {
+      .card:hover { transform: none; box-shadow: var(--shadow-soft); }
+      .btn:hover { transform: none; }
+      .home-card:active { transform: scale(0.98); }
+      .btn:active { transform: scale(0.97); }
+    }
+  </style>
+</head>
+<body>
+
+<div class="bg-shapes">
+  <div class="bg-shape"></div>
+  <div class="bg-shape"></div>
+  <div class="bg-shape"></div>
+</div>
+
+<!-- Mobile Bottom Nav -->
+<nav id="mobile-nav" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:200;background:rgba(255,255,255,0.95);backdrop-filter:blur(12px);border-top:1px solid #e2e8f0;padding:0.5rem 0.25rem;padding-bottom:calc(0.5rem + env(safe-area-inset-bottom))">
+  <div style="display:flex;justify-content:space-around;align-items:center">
+    <button onclick="showPage('home')" class="mob-nav-btn" id="mnav-home" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:0.2rem;background:none;border:none;padding:0.4rem;cursor:pointer;border-radius:10px;transition:background 0.2s">
+      <span style="font-size:1.3rem">🏠</span>
+      <span style="font-size:0.68rem;font-weight:700;color:#64748b">الرئيسية</span>
+    </button>
+    <button onclick="showPage('qr');switchTab('create')" class="mob-nav-btn" id="mnav-qr" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:0.2rem;background:none;border:none;padding:0.4rem;cursor:pointer;border-radius:10px;transition:background 0.2s">
+      <span style="font-size:1.3rem">⚙️</span>
+      <span style="font-size:0.68rem;font-weight:700;color:#64748b">إنشاء QR</span>
+    </button>
+    <button onclick="showPage('qr');switchTab('scan')" class="mob-nav-btn" id="mnav-scan" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:0.2rem;background:none;border:none;padding:0.4rem;cursor:pointer;border-radius:10px;transition:background 0.2s">
+      <span style="font-size:1.3rem">📷</span>
+      <span style="font-size:0.68rem;font-weight:700;color:#64748b">مسح</span>
+    </button>
+    <button onclick="showPage('manual')" class="mob-nav-btn" id="mnav-manual" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:0.2rem;background:none;border:none;padding:0.4rem;cursor:pointer;border-radius:10px;transition:background 0.2s">
+      <span style="font-size:1.3rem">📝</span>
+      <span style="font-size:0.68rem;font-weight:700;color:#64748b">يدوي</span>
+    </button>
+    <button onclick="showPage('qr');switchTab('records')" class="mob-nav-btn" id="mnav-records" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:0.2rem;background:none;border:none;padding:0.4rem;cursor:pointer;border-radius:10px;transition:background 0.2s">
+      <span style="font-size:1.3rem">📋</span>
+      <span style="font-size:0.68rem;font-weight:700;color:#64748b">السجلات</span>
+    </button>
+  </div>
+</nav>
+
+<!-- Header -->
+<header class="site-header">
+  <div class="header-inner">
+    <div class="logo" onclick="showPage('home')">
+      <span>🎓</span> نظام الحضور
+    </div>
+    <div style="display:flex;align-items:center;gap:0.75rem">
+      <span id="db-status" style="font-size:0.78rem;font-weight:700;color:#94a3b8">⏳ جاري الاتصال...</span>
+      <button class="btn-back" id="backBtn" onclick="showPage('home')" style="display:none">← الرئيسية</button>
+    </div>
+  </div>
+</header>
+
+<!-- ====== HOME PAGE ====== -->
+<div id="page-home" class="page active">
+  <div class="container-main">
+    <div class="hero reveal">
+      <div class="hero-badge">🟢 النظام يعمل</div>
+      <h1>نظام تسجيل <span>الحضور</span></h1>
+      <p>اختر العملية المطلوبة للبدء</p>
+    </div>
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-3 mt-2">
+      <div class="card home-card reveal" style="transition-delay:0.1s" onclick="showPage('qr'); switchTab('create')">
+        <div class="card-icon icon-blue">⚙️</div>
+        <div class="home-card-content">
+          <h3>إنشاء QR Code</h3>
+          <p>أنشئ رمز QR خاص بالمادة والمجموعة لتسجيل الحضور بسرعة</p>
+          <div class="card-arrow text-blue-600">ابدأ الآن →</div>
+        </div>
+      </div>
+      <div class="card home-card reveal" style="transition-delay:0.2s" onclick="showPage('qr'); switchTab('scan')">
+        <div class="card-icon icon-green">📷</div>
+        <div class="home-card-content">
+          <h3>مسح QR وتسجيل الحضور</h3>
+          <p>سجّل حضور الطلاب باستخدام بيانات الجلسة ورقم الطالب</p>
+          <div class="card-arrow text-green-600">تسجيل الآن →</div>
+        </div>
+      </div>
+      <div class="card home-card reveal" style="transition-delay:0.3s" onclick="showPage('manual')">
+        <div class="card-icon icon-orange">📝</div>
+        <div class="home-card-content">
+          <h3>نموذج الحضور اليدوي</h3>
+          <p>سجّل الحضور يدوياً بإدخال كافة بيانات المادة والطالب</p>
+          <div class="card-arrow text-orange-600">ابدأ التسجيل →</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats strip -->
+    <div class="card mt-6 p-5 reveal" style="transition-delay:0.4s">
+      <div class="grid grid-cols-3 gap-4 text-center">
+        <div>
+          <div class="text-2xl font-black text-blue-600" id="stat-total">0</div>
+          <div class="text-xs text-gray-500 font-semibold mt-1">إجمالي السجلات</div>
+        </div>
+        <div>
+          <div class="text-2xl font-black text-green-600" id="stat-today">0</div>
+          <div class="text-xs text-gray-500 font-semibold mt-1">سجلات اليوم</div>
+        </div>
+        <div>
+          <div class="text-2xl font-black text-orange-600" id="stat-subjects">0</div>
+          <div class="text-xs text-gray-500 font-semibold mt-1">مواد مختلفة</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ====== QR PAGE ====== -->
+<div id="page-qr" class="page">
+  <div class="container-main">
+    <div class="mb-6">
+      <div class="section-title">🔲 نظام QR Code</div>
+      <div class="section-subtitle">إنشاء رمز QR أو تسجيل حضور الطلاب</div>
+    </div>
+
+    <div class="tabs mb-6">
+      <button class="tab-btn active" id="tab-create" onclick="switchTab('create')">⚙️ إنشاء QR Code</button>
+      <button class="tab-btn" id="tab-scan" onclick="switchTab('scan')">📷 تسجيل الحضور</button>
+      <button class="tab-btn" id="tab-records" onclick="switchTab('records')">📋 السجلات</button>
+    </div>
+
+    <!-- Create QR tab -->
+    <div id="panel-create">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div class="card p-6">
+          <h2 class="text-lg font-black text-gray-800 mb-5">بيانات الجلسة</h2>
+          <div class="space-y-4">
+            <div>
+              <label class="form-label">📚 اسم المادة <span class="text-red-500">*</span></label>
+              <input type="text" id="qr-subject" class="form-input" placeholder="مثال: رياضيات متقدمة">
+            </div>
+            <div>
+              <label class="form-label">👨‍🏫 اسم الأستاذ <span class="text-red-500">*</span></label>
+              <input type="text" id="qr-teacher" class="form-input" placeholder="مثال: د. أحمد محمود">
+            </div>
+            <div>
+              <label class="form-label">👥 المجموعة / الشعبة <span class="text-red-500">*</span></label>
+              <input type="text" id="qr-group" class="form-input" placeholder="مثال: المجموعة أ">
+            </div>
+            <div>
+              <label class="form-label">📅 التاريخ <span class="text-red-500">*</span></label>
+              <input type="date" id="qr-date" class="form-input">
+            </div>
+          </div>
+          <div id="create-alert" class="mt-4" style="display:none"></div>
+          <button class="btn btn-primary btn-full mt-5" onclick="generateQR()">⚡ إنشاء رمز QR</button>
+        </div>
+
+        <div id="qr-result-box" class="card p-6 flex flex-col items-center justify-center" style="display:none">
+          <div class="qr-display-box w-full">
+            <div id="qr-canvas-container" style="display:flex;justify-content:center;align-items:center;min-height:220px"></div>
+            <div class="qr-meta">
+              <div class="subject" id="qr-label-subject"></div>
+              <div class="details" id="qr-label-details"></div>
+            </div>
+          </div>
+          <div class="flex gap-3 mt-5 flex-wrap justify-center">
+            <button class="btn btn-primary btn-sm" onclick="downloadQR()">⬇️ تنزيل PNG</button>
+            <button class="btn btn-outline btn-sm" onclick="copyQRSession()">📋 نسخ بيانات الجلسة</button>
+          </div>
+          <div class="info-strip mt-4 w-full">
+            💡 <strong>تلميح:</strong> اطبع هذا الرمز أو اعرضه على الشاشة ليتمكن الطلاب من تسجيل حضورهم
+          </div>
+        </div>
+
+        <div id="qr-placeholder" class="card p-6 flex flex-col items-center justify-center text-center">
+          <div style="font-size:5rem; opacity:0.15">🔲</div>
+          <p class="text-gray-400 font-semibold mt-3">سيظهر رمز QR هنا بعد الإنشاء</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scan / Mark Attendance tab -->
+    <div id="panel-scan" style="display:none">
+
+      <!-- STEP 1: Camera Scanner -->
+      <div id="scan-step1" class="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div class="card p-6">
+          <h2 class="text-lg font-black text-gray-800 mb-1">📷 مسح رمز QR</h2>
+          <p class="text-sm text-gray-500 mb-4">وجّه الكاميرا نحو رمز QR الخاص بالمادة</p>
+
+          <!-- Camera viewport -->
+          <div id="camera-box" style="position:relative;background:#0f172a;border-radius:16px;overflow:hidden;aspect-ratio:1/1;max-width:340px;margin:0 auto">
+            <video id="qr-video" style="width:100%;height:100%;object-fit:cover;display:block" autoplay muted playsinline></video>
+            <!-- Scanning overlay -->
+            <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none">
+              <div id="scan-frame" style="width:60%;aspect-ratio:1/1;border:3px solid rgba(59,130,246,0.9);border-radius:16px;box-shadow:0 0 0 9999px rgba(0,0,0,0.4);animation:scanPulse 1.5s ease-in-out infinite"></div>
+            </div>
+            <!-- scan line -->
+            <div id="scan-line" style="position:absolute;left:20%;right:20%;height:2px;background:linear-gradient(90deg,transparent,#3b82f6,transparent);animation:scanLine 2s linear infinite;display:none"></div>
+            <!-- Status overlay -->
+            <div id="cam-status" style="position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(0,0,0,0.7));padding:0.75rem;text-align:center;color:white;font-size:0.82rem;font-weight:600">جاري تشغيل الكاميرا...</div>
+          </div>
+
+          <div style="margin-top:1rem;display:flex;gap:0.75rem;flex-wrap:wrap">
+            <button class="btn btn-primary btn-sm" id="btn-start-cam" onclick="startCamera()" style="flex:1">📷 تشغيل الكاميرا</button>
+            <button class="btn btn-outline btn-sm" id="btn-stop-cam" onclick="stopCamera()" style="flex:1;display:none">⏹ إيقاف</button>
+          </div>
+          <div class="info-strip mt-3" style="font-size:0.82rem">
+            💡 بعد المسح ستظهر بيانات المادة تلقائياً وتكمّل اسمك وكودك فقط
+          </div>
+        </div>
+
+        <div class="card p-6 flex flex-col justify-between">
+          <div>
+            <h2 class="text-lg font-black text-gray-800 mb-4">بيانات المادة المُستخرجة</h2>
+            <div id="extracted-empty" style="text-align:center;padding:2.5rem 1rem;color:#94a3b8">
+              <div style="font-size:3.5rem;opacity:0.3">🔲</div>
+              <p style="font-size:0.9rem;margin-top:0.5rem">في انتظار مسح الرمز...</p>
+            </div>
+            <div id="extracted-data" style="display:none">
+              <div style="background:linear-gradient(135deg,#eff6ff,#f0fdfa);border:1px solid #bfdbfe;border-radius:14px;padding:1.25rem;margin-bottom:1rem">
+                <div style="display:grid;gap:0.75rem">
+                  <div style="display:flex;align-items:center;gap:0.6rem">
+                    <span style="font-size:1.1rem">📚</span>
+                    <div><div style="font-size:0.75rem;color:#64748b;font-weight:600">المادة</div><div id="ex-subject" style="font-weight:800;color:#0f172a;font-size:1rem"></div></div>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:0.6rem">
+                    <span style="font-size:1.1rem">👨‍🏫</span>
+                    <div><div style="font-size:0.75rem;color:#64748b;font-weight:600">الأستاذ</div><div id="ex-teacher" style="font-weight:800;color:#0f172a"></div></div>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:0.6rem">
+                    <span style="font-size:1.1rem">👥</span>
+                    <div><div style="font-size:0.75rem;color:#64748b;font-weight:600">المجموعة</div><div id="ex-group" style="font-weight:800;color:#0f172a"></div></div>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:0.6rem">
+                    <span style="font-size:1.1rem">📅</span>
+                    <div><div style="font-size:0.75rem;color:#64748b;font-weight:600">التاريخ</div><div id="ex-date" style="font-weight:800;color:#0f172a"></div></div>
+                  </div>
+                </div>
+              </div>
+              <button class="btn btn-green btn-full" onclick="proceedToStudentForm()">التالي: أدخل بياناتك ←</button>
+            </div>
+          </div>
+          <div style="margin-top:1rem">
+            <h3 style="font-size:0.9rem;font-weight:700;color:#475569;margin-bottom:0.75rem">آخر 5 سجلات</h3>
+            <div id="recent-records"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 2: Student form (after scan) -->
+      <div id="scan-step2" style="display:none">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div class="card p-6">
+            <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1.5rem">
+              <button onclick="backToScan()" style="background:#f1f5f9;border:none;border-radius:10px;padding:0.5rem 0.75rem;cursor:pointer;font-size:0.85rem;font-weight:700;color:#475569">← رجوع</button>
+              <div>
+                <h2 class="text-lg font-black text-gray-800">أدخل بياناتك</h2>
+                <p class="text-sm text-gray-500">اكتب اسمك وكودك فقط</p>
+              </div>
+            </div>
+
+            <!-- Session summary -->
+            <div style="background:#f0fdfa;border:1.5px solid #99f6e4;border-radius:14px;padding:1rem 1.25rem;margin-bottom:1.5rem">
+              <div style="font-size:0.78rem;font-weight:700;color:#0f766e;margin-bottom:0.4rem">✅ تم مسح الرمز بنجاح — بيانات الجلسة:</div>
+              <div style="font-size:0.88rem;font-weight:700;color:#134e4a" id="step2-session-summary"></div>
+            </div>
+
+            <div class="space-y-4">
+              <div>
+                <label class="form-label">🎓 اسمك الكامل <span class="text-red-500">*</span></label>
+                <input type="text" id="att-name" class="form-input" placeholder="اكتب اسمك الكامل" autofocus>
+              </div>
+              <div>
+                <label class="form-label">🪪 الكود / الرقم التعريفي <span class="text-red-500">*</span></label>
+                <input type="text" id="att-id" class="form-input" placeholder="مثال: 202201234">
+              </div>
+            </div>
+            <div id="att-alert" class="mt-4" style="display:none"></div>
+            <button class="btn btn-green btn-full mt-5" onclick="markAttendance()">✅ تسجيل حضوري</button>
+          </div>
+
+          <div class="card p-6">
+            <h2 class="text-lg font-black text-gray-800 mb-4">آخر السجلات في هذه الجلسة</h2>
+            <div id="session-records"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Records tab -->
+    <div id="panel-records" style="display:none">
+      <div class="card p-6">
+        <div class="flex items-center justify-between mb-5 flex-wrap gap-3">
+          <div>
+            <h2 class="text-lg font-black text-gray-800">سجلات الحضور</h2>
+            <p class="text-sm text-gray-500">آخر 20 سجل</p>
+          </div>
+          <div class="flex gap-2">
+            <button class="btn btn-outline btn-sm" onclick="exportCSV()">📤 تصدير CSV</button>
+            <button class="btn btn-sm" style="background:#fee2e2;color:#991b1b;border:none" onclick="clearAll()">🗑️ مسح الكل</button>
+          </div>
+        </div>
+        <div style="background:#f0fdfa;border:1px solid #99f6e4;border-radius:12px;padding:0.75rem 1rem;margin-bottom:1rem;font-size:0.85rem;color:#0f766e;display:flex;align-items:center;gap:0.5rem">
+          <span style="font-size:1.1rem">🔥</span>
+          <div>البيانات محفوظة على <strong>Firebase</strong> وتظهر على جميع الأجهزة في الوقت الفعلي</div>
+        </div>
+        <div class="table-wrapper">
+          <table class="records-table" id="records-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>اسم الطالب</th>
+                <th>رقم الطالب</th>
+                <th>المادة</th>
+                <th>المجموعة</th>
+                <th>الوقت</th>
+                <th>الحالة</th>
+              </tr>
+            </thead>
+            <tbody id="records-body"></tbody>
+          </table>
+        </div>
+        <div id="records-empty" class="empty-state" style="display:none">
+          <div class="icon">📋</div>
+          <p>لا توجد سجلات حضور بعد</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ====== MANUAL PAGE ====== -->
+<div id="page-manual" class="page">
+  <div class="container-main">
+    <div class="mb-6">
+      <div class="section-title">📝 نموذج الحضور اليدوي</div>
+      <div class="section-subtitle">سجّل حضور طالب بإدخال جميع البيانات يدوياً</div>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-5 gap-5">
+      <div class="card p-6 md:col-span-3">
+        <h2 class="text-base font-black text-gray-700 mb-5 pb-3 border-b border-gray-100">📚 بيانات الجلسة</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="form-label">اسم المادة <span class="text-red-500">*</span></label>
+            <input type="text" id="m-subject" class="form-input" placeholder="مثال: فيزياء">
+          </div>
+          <div>
+            <label class="form-label">اسم الأستاذ <span class="text-red-500">*</span></label>
+            <input type="text" id="m-teacher" class="form-input" placeholder="مثال: د. سعد علي">
+          </div>
+          <div>
+            <label class="form-label">المجموعة <span class="text-red-500">*</span></label>
+            <input type="text" id="m-group" class="form-input" placeholder="المجموعة ب">
+          </div>
+          <div>
+            <label class="form-label">التاريخ <span class="text-red-500">*</span></label>
+            <input type="date" id="m-date" class="form-input">
+          </div>
+        </div>
+
+        <h2 class="text-base font-black text-gray-700 mb-4 mt-6 pb-3 border-b border-gray-100">🎓 بيانات الطالب</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="form-label">اسم الطالب <span class="text-red-500">*</span></label>
+            <input type="text" id="m-name" class="form-input" placeholder="الاسم الكامل">
+          </div>
+          <div>
+            <label class="form-label">رقم الطالب <span class="text-red-500">*</span></label>
+            <input type="text" id="m-id" class="form-input" placeholder="الرقم التعريفي">
+          </div>
+          <div class="sm:col-span-2">
+            <label class="form-label">ملاحظات (اختياري)</label>
+            <input type="text" id="m-notes" class="form-input" placeholder="أي ملاحظات إضافية...">
+          </div>
+        </div>
+
+        <div id="manual-alert" class="mt-4" style="display:none"></div>
+        <button class="btn btn-orange btn-full mt-5" onclick="submitManual()">💾 حفظ السجل</button>
+      </div>
+
+      <div class="card p-6 md:col-span-2">
+        <h2 class="text-base font-black text-gray-700 mb-4">آخر السجلات</h2>
+        <div id="manual-recent"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+// ========== FIREBASE SETUP ==========
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
+import {
+  getFirestore, collection, addDoc, getDocs,
+  query, orderBy, limit, onSnapshot, deleteDoc, doc, serverTimestamp
+} from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBppdcEAcM7k2v8Y6Q_LCw7NV2vUyHFs9s",
+  authDomain: "attendance-system-1bc44.firebaseapp.com",
+  projectId: "attendance-system-1bc44",
+  storageBucket: "attendance-system-1bc44.firebasestorage.app",
+  messagingSenderId: "475779120757",
+  appId: "1:475779120757:web:866df20e96641d755b423c",
+  measurementId: "G-Z6C3P73VVJ"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const COLLECTION = 'attendance';
+
+// ========== FIREBASE STATUS ==========
+function setDbStatus(ok) {
+  const el = document.getElementById('db-status');
+  if (!el) return;
+  if (ok) {
+    el.innerHTML = '🟢 متصل بـ Firebase';
+    el.style.color = '#15803d';
+  } else {
+    el.innerHTML = '🔴 غير متصل — يعمل محلياً';
+    el.style.color = '#991b1b';
+  }
+}
+
+// ========== STORAGE (Firebase + LocalStorage fallback) ==========
+async function addRecord(rec) {
+  const record = {
+    ...rec,
+    time: new Date().toLocaleString('ar-EG'),
+    createdAt: serverTimestamp()
+  };
+  try {
+    await addDoc(collection(db, COLLECTION), record);
+    setDbStatus(true);
+    // also save locally as cache
+    const local = getLocalRecords();
+    local.unshift({ ...record, id: Date.now() });
+    if (local.length > 100) local.pop();
+    saveLocalRecords(local);
+  } catch(e) {
+    console.warn('Firebase error, saving locally:', e);
+    setDbStatus(false);
+    const local = getLocalRecords();
+    local.unshift({ ...record, id: Date.now() });
+    if (local.length > 100) local.pop();
+    saveLocalRecords(local);
+  }
+}
+
+async function getRecords() {
+  try {
+    const q = query(collection(db, COLLECTION), orderBy('createdAt', 'desc'), limit(100));
+    const snap = await getDocs(q);
+    const records = snap.docs.map(d => ({ ...d.data(), _docId: d.id }));
+    setDbStatus(true);
+    // update local cache
+    saveLocalRecords(records);
+    return records;
+  } catch(e) {
+    console.warn('Firebase read error, using local:', e);
+    setDbStatus(false);
+    return getLocalRecords();
+  }
+}
+
+async function clearAllRecords() {
+  try {
+    const snap = await getDocs(collection(db, COLLECTION));
+    const deletes = snap.docs.map(d => deleteDoc(doc(db, COLLECTION, d.id)));
+    await Promise.all(deletes);
+    saveLocalRecords([]);
+    setDbStatus(true);
+  } catch(e) {
+    console.warn('Firebase delete error:', e);
+    saveLocalRecords([]);
+  }
+}
+
+// Local cache helpers
+function getLocalRecords() {
+  try { return JSON.parse(localStorage.getItem('att_cache')) || []; }
+  catch { return []; }
+}
+function saveLocalRecords(r) {
+  localStorage.setItem('att_cache', JSON.stringify(r));
+}
+
+// Real-time listener for records table
+function listenRecords(callback) {
+  try {
+    const q = query(collection(db, COLLECTION), orderBy('createdAt', 'desc'), limit(20));
+    return onSnapshot(q, (snap) => {
+      const records = snap.docs.map(d => ({ ...d.data(), _docId: d.id }));
+      saveLocalRecords(records);
+      setDbStatus(true);
+      callback(records);
+    }, (err) => {
+      console.warn('Listener error:', err);
+      setDbStatus(false);
+      callback(getLocalRecords());
+    });
+  } catch(e) {
+    callback(getLocalRecords());
+    return () => {};
+  }
+}
+
+let unsubscribeListener = null;
+
+// ========== NAVIGATION ==========
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  const backBtn = document.getElementById('backBtn');
+  if (backBtn) backBtn.style.display = (name === 'home') ? 'none' : 'flex';
+  window.scrollTo(0, 0);
+  if (name === 'home') updateStats();
+  if (name === 'manual') { setDefaultDate('m-date'); renderManualRecent(); }
+  if (name === 'qr') { setDefaultDate('qr-date'); }
+  updateMobileNav(name);
+}
+
+function updateMobileNav(page) {
+  const btns = document.querySelectorAll('.mob-nav-btn span:last-child');
+  btns.forEach(s => s.style.color = '#64748b');
+  document.querySelectorAll('.mob-nav-btn').forEach(b => b.style.background = 'none');
+  const map = { home: 'mnav-home', qr: 'mnav-qr', manual: 'mnav-manual' };
+  const active = document.getElementById(map[page] || 'mnav-home');
+  if (active) {
+    active.style.background = 'rgba(30,64,175,0.08)';
+    const lbl = active.querySelector('span:last-child');
+    if (lbl) lbl.style.color = '#1e40af';
+  }
+}
+
+// Show/hide mobile nav based on screen size
+function handleResize() {
+  const nav = document.getElementById('mobile-nav');
+  if (window.innerWidth < 640) {
+    nav.style.display = 'block';
+  } else {
+    nav.style.display = 'none';
+  }
+}
+window.addEventListener('resize', handleResize);
+handleResize();
+
+function setDefaultDate(id) {
+  const el = document.getElementById(id);
+  if (el && !el.value) el.value = new Date().toISOString().split('T')[0];
+}
+
+// ========== TABS ==========
+function switchTab(tab) {
+  if (tab !== 'scan') stopCamera();
+  ['create','scan','records'].forEach(t => {
+    document.getElementById('tab-'+t).classList.toggle('active', t === tab);
+    document.getElementById('panel-'+t).style.display = (t === tab) ? 'block' : 'none';
+  });
+  if (tab === 'records') renderRecordsTable();
+  if (tab === 'scan') {
+    renderRecentAttendance();
+    // reset to step 1
+    document.getElementById('scan-step1').style.display = 'grid';
+    document.getElementById('scan-step2').style.display = 'none';
+    scannedSession = null;
+    document.getElementById('extracted-empty').style.display = 'block';
+    document.getElementById('extracted-data').style.display = 'none';
+  }
+}
+
+// ========== QR GENERATION ==========
+let currentQRData = null;
+let qrInstance = null;
+
+function generateQR() {
+  const subject = document.getElementById('qr-subject').value.trim();
+  const teacher = document.getElementById('qr-teacher').value.trim();
+  const group = document.getElementById('qr-group').value.trim();
+  const date = document.getElementById('qr-date').value;
+  const alertEl = document.getElementById('create-alert');
+
+  if (!subject || !teacher || !group || !date) {
+    showAlert(alertEl, 'error', '⚠️ يرجى ملء جميع الحقول المطلوبة');
+    return;
+  }
+  hideAlert(alertEl);
+
+  const qrText = JSON.stringify({ subject, teacher, group, date });
+
+  currentQRData = { subject, teacher, group, date, qrText };
+
+  const container = document.getElementById('qr-canvas-container');
+  container.innerHTML = '';
+
+  try {
+    qrInstance = new QRCode(container, {
+      text: qrText,
+      width: 220,
+      height: 220,
+      colorDark: '#1e40af',
+      colorLight: '#ffffff',
+      correctLevel: QRCode.CorrectLevel.M
+    });
+  } catch(e) {
+    // fallback to QuickChart
+    const encoded = encodeURIComponent(qrText);
+    const img = document.createElement('img');
+    img.src = `https://quickchart.io/qr?text=${encoded}&size=220&margin=1&ecLevel=M&dark=1e40af`;
+    img.style.borderRadius = '12px';
+    img.style.maxWidth = '220px';
+    container.appendChild(img);
+  }
+
+  document.getElementById('qr-label-subject').textContent = subject;
+  document.getElementById('qr-label-details').textContent = `${teacher} — ${group} — ${date}`;
+
+  const resultBox = document.getElementById('qr-result-box');
+  const placeholder = document.getElementById('qr-placeholder');
+  resultBox.style.display = 'flex';
+  placeholder.style.display = 'none';
+
+  showAlert(alertEl, 'success', '✅ تم إنشاء رمز QR بنجاح!');
+}
+
+function downloadQR() {
+  const container = document.getElementById('qr-canvas-container');
+  const canvas = container.querySelector('canvas');
+  if (canvas) {
+    const a = document.createElement('a');
+    a.href = canvas.toDataURL('image/png');
+    a.download = 'qr-attendance.png';
+    a.click();
+  } else {
+    const img = container.querySelector('img');
+    if (img) {
+      const a = document.createElement('a');
+      a.href = img.src;
+      a.download = 'qr-attendance.png';
+      a.click();
+    }
+  }
+}
+
+function copyQRSession() {
+  if (!currentQRData) return;
+  const text = `المادة: ${currentQRData.subject}\nالأستاذ: ${currentQRData.teacher}\nالمجموعة: ${currentQRData.group}\nالتاريخ: ${currentQRData.date}`;
+  navigator.clipboard.writeText(text).then(() => alert('تم النسخ!'));
+}
+
+// ========== CAMERA / QR SCANNER ==========
+let videoStream = null;
+let scanInterval = null;
+let scannedSession = null;
+
+async function startCamera() {
+  const video = document.getElementById('qr-video');
+  const status = document.getElementById('cam-status');
+  const scanLine = document.getElementById('scan-line');
+  try {
+    videoStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 640 } }
+    });
+    video.srcObject = videoStream;
+    await video.play();
+    status.textContent = '🔍 جاري البحث عن رمز QR...';
+    scanLine.style.display = 'block';
+    document.getElementById('btn-start-cam').style.display = 'none';
+    document.getElementById('btn-stop-cam').style.display = 'flex';
+    startScanning();
+  } catch(e) {
+    status.textContent = '❌ تعذّر الوصول للكاميرا — تأكد من منح الإذن';
+    status.style.color = '#fca5a5';
+  }
+}
+
+function stopCamera() {
+  if (videoStream) { videoStream.getTracks().forEach(t => t.stop()); videoStream = null; }
+  if (scanInterval) { clearInterval(scanInterval); scanInterval = null; }
+  const video = document.getElementById('qr-video');
+  video.srcObject = null;
+  document.getElementById('cam-status').textContent = 'جاري تشغيل الكاميرا...';
+  document.getElementById('scan-line').style.display = 'none';
+  document.getElementById('btn-start-cam').style.display = 'flex';
+  document.getElementById('btn-stop-cam').style.display = 'none';
+}
+
+function startScanning() {
+  const video = document.getElementById('qr-video');
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  scanInterval = setInterval(() => {
+    if (video.readyState !== video.HAVE_ENOUGH_DATA) return;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
+    if (code) {
+      onQRDetected(code.data);
+    }
+  }, 300);
+}
+
+function onQRDetected(data) {
+  // Stop scanning
+  clearInterval(scanInterval);
+  scanInterval = null;
+
+  // Try parse JSON
+  let session = null;
+  try { session = JSON.parse(data); } catch(e) { session = null; }
+
+  if (!session || !session.subject) {
+    document.getElementById('cam-status').textContent = '⚠️ الرمز غير مدعوم — جرّب رمز QR صادر من النظام';
+    setTimeout(() => {
+      if (videoStream) startScanning();
+    }, 2000);
+    return;
+  }
+
+  // Success!
+  stopCamera();
+  scannedSession = session;
+  document.getElementById('cam-status').textContent = '✅ تم المسح بنجاح!';
+
+  // Show extracted data
+  document.getElementById('ex-subject').textContent = session.subject;
+  document.getElementById('ex-teacher').textContent = session.teacher;
+  document.getElementById('ex-group').textContent = session.group;
+  document.getElementById('ex-date').textContent = session.date;
+  document.getElementById('extracted-empty').style.display = 'none';
+  document.getElementById('extracted-data').style.display = 'block';
+}
+
+function proceedToStudentForm() {
+  if (!scannedSession) return;
+  document.getElementById('scan-step1').style.display = 'none';
+  document.getElementById('scan-step2').style.display = 'block';
+  document.getElementById('step2-session-summary').textContent =
+    `${scannedSession.subject} | ${scannedSession.teacher} | ${scannedSession.group} | ${scannedSession.date}`;
+  document.getElementById('att-name').focus();
+  renderSessionRecords();
+}
+
+function backToScan() {
+  document.getElementById('scan-step2').style.display = 'none';
+  document.getElementById('scan-step1').style.display = 'grid';
+  document.getElementById('att-name').value = '';
+  document.getElementById('att-id').value = '';
+  hideAlert(document.getElementById('att-alert'));
+}
+
+// ========== MARK ATTENDANCE ==========
+async function markAttendance() {
+  if (!scannedSession) return;
+  const name = document.getElementById('att-name').value.trim();
+  const sid = document.getElementById('att-id').value.trim();
+  const alertEl = document.getElementById('att-alert');
+
+  if (!name || !sid) {
+    showAlert(alertEl, 'error', '⚠️ يرجى إدخال اسمك وكودك');
+    return;
+  }
+
+  const btn = document.querySelector('#scan-step2 .btn-green');
+  btn.disabled = true;
+  btn.textContent = '⏳ جاري الحفظ...';
+
+  await addRecord({
+    studentName: name,
+    studentId: sid,
+    subject: scannedSession.subject,
+    group: scannedSession.group,
+    teacher: scannedSession.teacher,
+    date: scannedSession.date,
+    notes: '',
+    source: 'QR-Scan'
+  });
+
+  btn.disabled = false;
+  btn.textContent = '✅ تسجيل حضوري';
+  showAlert(alertEl, 'success', `✅ تم تسجيل حضورك بنجاح يا ${name}!`);
+  document.getElementById('att-name').value = '';
+  document.getElementById('att-id').value = '';
+  await renderSessionRecords();
+  await renderRecentAttendance();
+  await updateStats();
+}
+
+// ========== MANUAL FORM ==========
+async function submitManual() {
+  const subject = document.getElementById('m-subject').value.trim();
+  const teacher = document.getElementById('m-teacher').value.trim();
+  const group = document.getElementById('m-group').value.trim();
+  const date = document.getElementById('m-date').value;
+  const name = document.getElementById('m-name').value.trim();
+  const sid = document.getElementById('m-id').value.trim();
+  const notes = document.getElementById('m-notes').value.trim();
+  const alertEl = document.getElementById('manual-alert');
+
+  if (!subject || !teacher || !group || !date || !name || !sid) {
+    showAlert(alertEl, 'error', '⚠️ يرجى ملء جميع الحقول المطلوبة');
+    return;
+  }
+
+  const btn = document.querySelector('#page-manual .btn-orange');
+  btn.disabled = true;
+  btn.textContent = '⏳ جاري الحفظ...';
+
+  await addRecord({ studentName: name, studentId: sid, subject, group, teacher, notes, date, source: 'يدوي' });
+
+  btn.disabled = false;
+  btn.textContent = '💾 حفظ السجل';
+  showAlert(alertEl, 'success', `✅ تم حفظ سجل الحضور بنجاح`);
+  document.getElementById('m-name').value = '';
+  document.getElementById('m-id').value = '';
+  document.getElementById('m-notes').value = '';
+  await renderManualRecent();
+  await updateStats();
+}
+
+// ========== RENDER FUNCTIONS ==========
+async function renderRecordsTable() {
+  const tbody = document.getElementById('records-body');
+  const empty = document.getElementById('records-empty');
+  tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:2rem;color:#94a3b8">⏳ جاري التحميل...</td></tr>';
+
+  // Use real-time listener
+  if (unsubscribeListener) unsubscribeListener();
+  unsubscribeListener = listenRecords((records) => {
+    if (records.length === 0) {
+      tbody.innerHTML = '';
+      empty.style.display = 'block';
+      return;
+    }
+    empty.style.display = 'none';
+    tbody.innerHTML = records.slice(0,20).map((r, i) => `
+      <tr>
+        <td><span class="badge badge-blue">${i + 1}</span></td>
+        <td><strong>${r.studentName}</strong></td>
+        <td>${r.studentId}</td>
+        <td>${r.subject}</td>
+        <td>${r.group}</td>
+        <td style="white-space:nowrap;font-size:0.8rem">${r.time || ''}</td>
+        <td><span class="badge badge-green">✓ حاضر</span></td>
+      </tr>
+    `).join('');
+  });
+}
+
+async function renderRecentAttendance() {
+  const records = await getRecords();
+  const el = document.getElementById('recent-records');
+  if (!el) return;
+  if (records.length === 0) {
+    el.innerHTML = '<div class="empty-state" style="padding:2rem"><div class="icon">📋</div><p>لا توجد سجلات</p></div>';
+    return;
+  }
+  el.innerHTML = records.slice(0,5).map(r => `
+    <div style="display:flex;align-items:center;gap:0.75rem;padding:0.65rem 0;border-bottom:1px solid #f1f5f9">
+      <div style="width:36px;height:36px;border-radius:10px;background:#dcfce7;display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0">✓</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:0.88rem;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.studentName}</div>
+        <div style="font-size:0.78rem;color:#64748b">${r.subject} — ${r.studentId}</div>
+      </div>
+      <span class="badge badge-green" style="font-size:0.73rem">حاضر</span>
+    </div>
+  `).join('');
+}
+
+async function renderSessionRecords() {
+  const el = document.getElementById('session-records');
+  if (!el || !scannedSession) return;
+  const all = await getRecords();
+  const records = all.filter(r => r.subject === scannedSession.subject && r.group === scannedSession.group).slice(0, 10);
+  if (records.length === 0) {
+    el.innerHTML = '<div class="empty-state" style="padding:1.5rem"><div class="icon">📋</div><p>لا توجد سجلات في هذه الجلسة بعد</p></div>';
+    return;
+  }
+  el.innerHTML = records.map((r, i) => `
+    <div style="display:flex;align-items:center;gap:0.75rem;padding:0.6rem 0;border-bottom:1px solid #f1f5f9">
+      <div style="width:28px;height:28px;border-radius:8px;background:#dcfce7;display:flex;align-items:center;justify-content:center;font-size:0.85rem;flex-shrink:0;font-weight:800;color:#15803d">${i+1}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:0.88rem;color:#0f172a">${r.studentName}</div>
+        <div style="font-size:0.75rem;color:#64748b">${r.studentId}</div>
+      </div>
+      <span class="badge badge-green" style="font-size:0.73rem">✓</span>
+    </div>
+  `).join('');
+}
+
+async function renderManualRecent() {
+  const records = await getRecords();
+  const el = document.getElementById('manual-recent');
+  if (!el) return;
+  if (records.length === 0) {
+    el.innerHTML = '<div class="empty-state" style="padding:2rem"><div class="icon">📋</div><p>لا توجد سجلات</p></div>';
+    return;
+  }
+  el.innerHTML = records.slice(0,8).map(r => `
+    <div style="display:flex;align-items:center;gap:0.75rem;padding:0.65rem 0;border-bottom:1px solid #f1f5f9">
+      <div style="width:36px;height:36px;border-radius:10px;background:#ffedd5;display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0">📝</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:0.88rem;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.studentName}</div>
+        <div style="font-size:0.78rem;color:#64748b">${r.subject} — ${r.group}</div>
+        <div style="font-size:0.73rem;color:#94a3b8">${r.time || ''}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function updateStats() {
+  const records = await getRecords();
+  document.getElementById('stat-total').textContent = records.length;
+  const today = new Date().toLocaleDateString('ar-EG').split('/')[0];
+  const todayCount = records.filter(r => r.time && r.time.includes(today)).length;
+  document.getElementById('stat-today').textContent = todayCount;
+  const subjects = new Set(records.map(r => r.subject));
+  document.getElementById('stat-subjects').textContent = subjects.size;
+}
+
+// ========== UTILS ==========
+function showAlert(el, type, msg) {
+  el.style.display = 'flex';
+  el.className = 'alert ' + (type === 'error' ? 'alert-error' : 'alert-success');
+  el.innerHTML = msg;
+}
+function hideAlert(el) { el.style.display = 'none'; }
+
+function clearAll() {
+  if (confirm('هل أنت متأكد من مسح جميع السجلات؟ سيتم الحذف من Firebase نهائياً!')) {
+    clearAllRecords().then(() => {
+      renderRecordsTable();
+      updateStats();
+    });
+  }
+}
+
+async function exportCSV() {
+  const records = await getRecords();
+  if (records.length === 0) { alert('لا توجد سجلات للتصدير'); return; }
+  const header = ['#', 'اسم الطالب', 'رقم الطالب', 'المادة', 'المجموعة', 'الأستاذ', 'الوقت', 'المصدر'];
+  const rows = records.map((r, i) => [i+1, r.studentName, r.studentId, r.subject, r.group, r.teacher||'', r.time||'', r.source||'']);
+  const csv = '\uFEFF' + [header, ...rows].map(r => r.join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'attendance.csv'; a.click();
+}
+
+// ========== SCROLL REVEAL ==========
+function revealElements() {
+  document.querySelectorAll('.reveal').forEach(el => {
+    const rect = el.getBoundingClientRect();
+    if (rect.top < window.innerHeight - 50) el.classList.add('visible');
+  });
+}
+
+// ========== INIT ==========
+window.addEventListener('scroll', revealElements);
+setTimeout(revealElements, 100);
+updateStats();
+setDefaultDate('m-date');
+setDefaultDate('qr-date');
+
+// Expose all functions to window (needed for onclick in HTML with type="module")
+window.showPage = showPage;
+window.switchTab = switchTab;
+window.generateQR = generateQR;
+window.downloadQR = downloadQR;
+window.copyQRSession = copyQRSession;
+window.startCamera = startCamera;
+window.stopCamera = stopCamera;
+window.proceedToStudentForm = proceedToStudentForm;
+window.backToScan = backToScan;
+window.markAttendance = markAttendance;
+window.submitManual = submitManual;
+window.clearAll = clearAll;
+window.exportCSV = exportCSV;
+window.updateMobileNav = updateMobileNav;
+</script>
+</body>
+</html>
